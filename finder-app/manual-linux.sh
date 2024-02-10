@@ -143,7 +143,8 @@ sudo mknod -m 600 dev/console c 5 1
 
 # TODO: Clean and build the writer utility
 # Change to the finder-app directory and clean and build the writer utility
-cd /home/aneesh/courses/aesd/assignment-2-aneesh1298/finder-app
+#cd /home/aneesh/courses/aesd/assignment-2-aneesh1298/finder-app
+cd "${FINDER_APP_DIR}"
 make clean
 make CROSS_COMPILE=aarch64-none-linux-gnu-
 # Copy the built writer utility to the /home directory in the root filesystem
