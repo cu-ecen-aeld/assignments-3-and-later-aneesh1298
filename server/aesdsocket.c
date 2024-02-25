@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
   //  Sets the AI_PASSIVE flag, allowing the resulting address to be used in a
   //  call to bind() for a server socket.
   memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC;
+  hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE; // use my IP
 
