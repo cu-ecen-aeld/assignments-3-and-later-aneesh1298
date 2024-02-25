@@ -196,9 +196,34 @@ int main(int argc, char *argv[]) {
     }
     /* redirect fd's 0,1,2 to /dev/null */
     int fd = open("/dev/null", O_RDWR); /* stdin */
-    dup(0);                             /* stdout */
-    dup(0);                             /* stderror */
-    close(fd);
+    //dup(0);                             /* stdout */
+    //dup(0);                             /* stderror */
+    		if (fd == -1)
+        	{
+            		syslog(LOG_PERROR, "open:%s\n", strerror(errno));
+            		close(fd);
+            		close_n_exit(EXIT_FAILURE);       
+        	}
+        	if (dup2(fd, STDIN_FILENO)  == -1)
+        	{
+            		syslog(LOG_PERROR, "dup2:%s\n", strerror(errno));
+            		close(fd);
+            		close_n_exit(EXIT_FAILURE);    
+        	}
+        	if (dup2(fd, STDOUT_FILENO)  == -1)
+        	{
+            		syslog(LOG_PERROR, "dup2:%s\n", strerror(errno));
+            		close(fd);
+            		close_n_exit(EXIT_FAILURE);    
+        	}
+        	if (dup2(fd, STDERR_FILENO)  == -1)
+        	{
+            		syslog(LOG_PERROR, "dup2:%s\n", strerror(errno));
+            		close(fd);
+            		close_n_exit(EXIT_FAILURE);    
+        	}
+        	close(fd);
+    //close(fd);
 
     /* do its daemon thing... */
   }
