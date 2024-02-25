@@ -202,25 +202,30 @@ int main(int argc, char *argv[]) {
         	{
             		syslog(LOG_PERROR, "open:%s\n", strerror(errno));
             		close(fd);
-            		close_n_exit(EXIT_FAILURE);       
+            		error_handler(Socket_created);
+            		exit(EXIT_FAILURE);
+            		//close_n_exit(EXIT_FAILURE);       
         	}
         	if (dup2(fd, STDIN_FILENO)  == -1)
         	{
             		syslog(LOG_PERROR, "dup2:%s\n", strerror(errno));
             		close(fd);
-            		close_n_exit(EXIT_FAILURE);    
+            		error_handler(Socket_created);
+            		exit(EXIT_FAILURE);   
         	}
         	if (dup2(fd, STDOUT_FILENO)  == -1)
         	{
             		syslog(LOG_PERROR, "dup2:%s\n", strerror(errno));
             		close(fd);
-            		close_n_exit(EXIT_FAILURE);    
+            		error_handler(Socket_created);
+            		exit(EXIT_FAILURE);    
         	}
         	if (dup2(fd, STDERR_FILENO)  == -1)
         	{
             		syslog(LOG_PERROR, "dup2:%s\n", strerror(errno));
             		close(fd);
-            		close_n_exit(EXIT_FAILURE);    
+            		error_handler(Socket_created);
+            		exit(EXIT_FAILURE);   
         	}
         	close(fd);
     //close(fd);
