@@ -1,18 +1,16 @@
-# Makefile in the "server" directory
-
 CC := $(CROSS_COMPILE)gcc
+
 CFLAGS := -g -Wall -Werror
 
-TARGET := aesdsocket
+default : aesdsocket
 
-all: $(TARGET)
+all: aesdsocket
 
-$(TARGET): aesdsocket.o
-	$(CC) $(CFLAGS) aesdsocket.o -o $(TARGET)
+aesdsocket : aesdsocket.o
+	$(CC) $(CFLAGS) aesdsocket.o -o aesdsocket
 
 aesdsocket.o: aesdsocket.c
 	$(CC) $(CFLAGS) -c aesdsocket.c
 
 clean:
-	-rm -f *.o $(TARGET)
-
+	-rm -f *.o aesdsocket
