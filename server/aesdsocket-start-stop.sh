@@ -3,7 +3,7 @@
 case "$1" in
     start)
         echo "Starting aesdsocket"
-        start-stop-daemon -S -n aesdsocket -a /usr/bin/aesdsocket -- -d
+        start-stop-daemon -S -n aesdsocket -a aesdsocket -- -d
         ;;
     stop)
         echo "Stopping aesdsocket"
@@ -11,6 +11,7 @@ case "$1" in
         ;;
     *)
         echo "Usage: $0 {start|stop}"
-	exit 1
+        exit 1
 	;;
 esac
+
