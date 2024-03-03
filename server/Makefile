@@ -2,13 +2,14 @@
 
 CC := $(CROSS_COMPILE)gcc
 CFLAGS := -g -Wall -Werror
+LDFLAGS ?= -pthread -lrt
 
 TARGET := aesdsocket
 
 all: $(TARGET)
 
 $(TARGET): aesdsocket.o
-	$(CC) $(CFLAGS) aesdsocket.o -o $(TARGET)
+	$(CC) $^ $(LDFLAGS) -o $@
 
 aesdsocket.o: aesdsocket.c
 	$(CC) $(CFLAGS) -c aesdsocket.c
