@@ -231,7 +231,7 @@ void *data_thread(void *thread_node) {
     }
 
     int n_written = write(file_fd, buf, n_received);
-    printf("\n\r data writing to file  is %s\n\r", buf);
+    //printf("\n\r data writing to file  is %s\n\r", buf);
     if ((n_written != n_received)) {
       syslog(LOG_ERR, "ERROR: Failed to WRITE complete data");
       error_handler(thread_close);
