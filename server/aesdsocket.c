@@ -209,7 +209,7 @@ void *data_thread(void *thread_node) {
   char buf[BUF_SIZE];
   int packet_receive_complete = 0;
   socket_node_t *node = (socket_node_t *)thread_node;
-  ;
+  node->my_thread_complete = false;
   int status=0;
   int file_fd = -1;
   if (thread_node == NULL) {
