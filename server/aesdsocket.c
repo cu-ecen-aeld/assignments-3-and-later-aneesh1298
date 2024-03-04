@@ -109,7 +109,7 @@ void signal_handler(int signal_number) {
   if ((signal_number == SIGINT) || (signal_number == SIGTERM)) {
     transfer_exit = 1;
     syslog(LOG_DEBUG, "Caught signal, exiting");
-    //error_handler(file_work);
+    error_handler(file_work);
     //exit(EXIT_SUCCESS);
   }
 }
