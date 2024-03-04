@@ -125,10 +125,12 @@ void *timestamp_thread(void *thread_node) {
   struct tm *local_time;
   int characters_written = 0;
   socket_node_t *temp_node = thread_node;
+  temp_node->my_thread_complete= false;
   while (!transfer_exit) {
     if (clock_gettime(CLOCK_MONOTONIC, &time_period) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to get time");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
     time_period.tv_sec += 10;
@@ -137,17 +139,21 @@ void *timestamp_thread(void *thread_node) {
         0) {
       syslog(LOG_ERR, "ERROR: Failed to sleep for 10 sec");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
-    if (time(&current_time) == -1) {
+    current_time =time(NULL);
+    if ((current_time) == -1) {
       syslog(LOG_ERR, "ERROR: Failed to get current time");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
     local_time = localtime(&current_time);
     if (NULL == local_time) {
       syslog(LOG_ERR, "ERROR: Failed to fill tm struct");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
 
@@ -156,6 +162,7 @@ void *timestamp_thread(void *thread_node) {
     if (0 == characters_written) {
       syslog(LOG_ERR, "ERROR: Failed to convert tm into string");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
 
@@ -164,11 +171,13 @@ void *timestamp_thread(void *thread_node) {
     if (file_fd == -1) {
       syslog(LOG_ERR, "ERROR: Failed to create/open file");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
     if (pthread_mutex_lock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to lock mutex");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
     // Writing the timestamp
@@ -177,11 +186,13 @@ void *timestamp_thread(void *thread_node) {
       syslog(LOG_ERR, "ERROR: Failed to write timestamp to file");
       temp_node->my_thread_complete = false;
       pthread_mutex_unlock(temp_node->thread_mutex);
+      close(file_fd);
       return thread_node;
     }
     if (pthread_mutex_unlock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
       temp_node->my_thread_complete = false;
+      close(file_fd);
       return thread_node;
     }
     temp_node->my_thread_complete = true;
@@ -571,7 +582,7 @@ int main(int argc, char *argv[]) {
   }
 
   //exit:
-  //error_handler(file_work);
+  error_handler(file_work);
   pthread_mutex_destroy(&thread_mutex);
   while (!SLIST_EMPTY(&head)) {
     data_ptr = SLIST_FIRST(&head);
