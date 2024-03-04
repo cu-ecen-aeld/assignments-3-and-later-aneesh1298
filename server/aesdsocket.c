@@ -109,7 +109,7 @@ void signal_handler(int signal_number) {
   if ((signal_number == SIGINT) || (signal_number == SIGTERM)) {
     transfer_exit = 1;
     syslog(LOG_DEBUG, "Caught signal, exiting");
-    //error_handler(file_work);
+    error_handler(file_work);
     //exit(EXIT_SUCCESS);
   }
 }
@@ -195,141 +195,154 @@ void *timestamp_thread(void *thread_node) {
 
 void *data_thread(void *thread_node) {
 
-  char buf[BUF_SIZE];
-  int packet_receive_complete = 0;
-  socket_node_t *node = (socket_node_t *)thread_node;
-  ;
-  int status=0;
-  int file_fd = -1;
-  if (thread_node == NULL) {
-    return NULL;
-  }
-  file_fd = open(DATA_FILE, O_CREAT | O_RDWR | O_APPEND, 0744);
-  if (file_fd == -1) {
-    syslog(LOG_ERR,
-           "ERROR: Failed to  OPEN the FILE at /var/temp/aesdsocketdata");
-      status=-1;
-	goto exit;
-    // exit(EXIT_FAILURE);
-  }
+   	int recv_bytes = 0;
+   	//int status=0;
+    	char buffer[1024] = {'\0'};
+    	bool packet_complete = false;
+    	int file_fd = -1;
+    	socket_node_t* node = NULL;
 
-  while (1) {
-    // bzero(buf, BUF_SIZE);
-    
-    memset(buf, 0, BUF_SIZE);
-    int n_received = recv(node->client_socket_fd, buf, 1024, 0);
-    // printf("\n\r data received is %s\n\r",buf);
-    if (n_received == -1) {
-      syslog(LOG_ERR, "ERROR: Failed to RECEIVE data");
-      status=-1;
-	goto exit;
-      // exit(EXIT_FAILURE);
-    }
+    	if (thread_node == NULL)
+    	{
+    	    return NULL;
+    	}
+    	else
+    	{
+    	    node = (socket_node_t *)thread_node;
+    	    node->my_thread_complete = false;
+    	    file_fd = open(DATA_FILE, O_CREAT|O_RDWR|O_APPEND, S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP | S_IROTH);
+    	    if (file_fd == -1)
+    	    {
+    	        syslog(LOG_ERR, "ERROR: Failed to create/open file");
+    	        node->my_thread_complete = false;
+    	        goto exit;
+    	    }
 
-    if (pthread_mutex_lock(node->thread_mutex) != 0) {
-      syslog(LOG_ERR, "ERROR: Failed to lock mutex");
-      status=-1;
-	goto exit;
-    }
+    	    int bytes_written = 0;
+    	    int new_len = 1024;
+    	    int total_bytes_recv = 0;
+    	    char *final_buffer = (char *)malloc(sizeof(char));
+    	    memset(final_buffer, 0, sizeof(char));
+    	    if(final_buffer == NULL)
+    	    {
+    	    	  node->my_thread_complete = false;
+    	         goto exit;
+    	    }
+    	    // Receive data till new line is found
+    	    do
+    	    {
+    	        memset(buffer, 0, 1024);
+    	        recv_bytes = recv(node->client_socket_fd, buffer, 1024, 0);
+    	        if (recv_bytes == -1)
+    	        {
+    	            syslog(LOG_ERR, "ERROR: Failed to recieve byte from client");
+    	            node->my_thread_complete = false;
+    	            goto exit;
+    	        }
+    	        else if (recv_bytes > 0)
+    	        {
+    	            new_len += 1;
+    	            char *tmp_buf = realloc(final_buffer, new_len);
+		    if (!tmp_buf)
+		    {
+		        syslog(LOG_ERR, "Realloc failure");
+	    	        node->my_thread_complete = false;
+	    	        goto exit;
+		    }
 
-    int n_written = write(file_fd, buf, n_received);
-    //printf("\n\r data writing to file  is %s\n\r", buf);
-    if ((n_written != n_received)) {
-      syslog(LOG_ERR, "ERROR: Failed to WRITE complete data");
-      //error_handler(thread_close);
-      pthread_mutex_unlock(node->thread_mutex);
-      status=-1;
-	goto exit;
-      // exit(EXIT_FAILURE);
-    }
+		    // Move contents of most recent recv into final buffer
+		    final_buffer = tmp_buf;
+		    total_bytes_recv += recv_bytes;
+		    strcat(final_buffer, buffer);
+    	        }
 
-    if (pthread_mutex_unlock(node->thread_mutex) != 0) {
-      syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
-      status=-1;
-	goto exit;
-    }
+    	        // Check if new line
+    	        if ((memchr(buffer, '\n', recv_bytes)) != NULL)
+    	        {
+    	            packet_complete = true;
+    	        }
+    	    }while(!packet_complete);
+    	    
+    	    if (pthread_mutex_lock(node->thread_mutex) != 0)
+    	    {
+		syslog(LOG_ERR, "ERROR: Failed to acquire mutex (data_thread)");
+		node->my_thread_complete = false;
+		goto exit;
+	    }
+		
+	    bytes_written = write(file_fd, final_buffer, total_bytes_recv);
+	    if (bytes_written != recv_bytes)
+	    {
+		syslog(LOG_ERR, "ERROR: Failed to write data");
+		node->my_thread_complete = false;
+		pthread_mutex_unlock(node->thread_mutex);
+		goto exit;
+	    }
+	    if (pthread_mutex_unlock(node->thread_mutex) != 0)
+	    {
+	    	syslog(LOG_ERR, "ERROR: Failed to unlock mutex (data_thread)");
+		node->my_thread_complete = false;
+		goto exit;
+	    }
 
-    int i = 0;
-    // or can you some standerd functions like memchr
-    for (i = 0; i < n_received; i++) {
-      if (buf[i] == '\n') {
-        packet_receive_complete = 1;
-        break;
-      }
-    }
+    	    // Set file pos to begining of file
+    	    off_t offset = lseek(file_fd, 0, SEEK_SET);
+    	    if (-1 == offset)
+    	    {
+    	        syslog(LOG_ERR, "ERROR: Failed to SET file offset");
+    	        node->my_thread_complete = false;
+    	        goto exit;
+    	    }
 
-    // If newline found, break out of the loop
-    if (packet_receive_complete == 1) {
-      break;
-    }
-  }
-  struct stat file_info;
-  fstat(file_fd, &file_info);
-  int file_size = file_info.st_size;
-  int cursor_set = lseek(file_fd, 0, SEEK_SET);
-  if (cursor_set == -1) {
-    syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
-      status=-1;
-	goto exit;
-    // exit(EXIT_FAILURE);
-  }
-  int byte_transfer_size = 1024;
-  for (int cumulatives_bytes_transferred = 0;
-       file_size >= cumulatives_bytes_transferred;
-       cumulatives_bytes_transferred += byte_transfer_size) {
-    // bzero(buf, 1024);
-    memset(buf, 0, 1024);
-    if (file_size - cumulatives_bytes_transferred < 1024) {
-      byte_transfer_size = file_size - cumulatives_bytes_transferred;
-    }
-    int bytes_read = read(file_fd, buf, 1024);
-    if (bytes_read == -1) {
-      syslog(LOG_ERR, "ERROR: Failed to READ data");
-      status=-1;
-	goto exit;
-      // exit(EXIT_FAILURE);
-    }
-    syslog(LOG_INFO, "Sent %d bytes of data in total till now from %d in total",
-           bytes_read, file_size);
-    if (bytes_read > 0) {
-      int bytes_sent = send(node->client_socket_fd, buf, bytes_read, 0);
-      // printf("\n\r data sending is %s\n\r",buf);
-      if (bytes_sent != bytes_read) {
-        syslog(LOG_ERR, "ERROR: Failed to SEND data");
-      status=-1;
-	goto exit;
-        // exit(EXIT_FAILURE);
-      }
-    }
-    if (byte_transfer_size < 1024) {
-      // printf("file transfer complete from  server\n");
+    	    int send_bytes = 0;
+    	    int bytes_read = 0;
 
-      syslog(LOG_INFO, "file transfer complete from  server");
-      // No other possibility to close than success
-      int file_closure = close(file_fd);
-      if (file_closure == 0) {
-        syslog(LOG_INFO, "CLOSED file after transfer complete");
-        syslog(LOG_INFO, "Closed connection from %s", ip_addr);
-      }
-      break;
-    }
-  }
-  exit:
-     close(node->client_socket_fd);
-    if (file_fd != -1) {
-      close(file_fd);
-      syslog(LOG_INFO, "FILE closure: %d", file_fd);
-    }
-    if(status== -1)
-    {
-        node->my_thread_complete = false;
-    }else{
-        node->my_thread_complete = true;
-    }
-    return thread_node;
-  //error_handler(thread_close);
-  //node->my_thread_complete = true;
-  //return thread_node;
+    	    do
+    	    {
+    	        memset(buffer, 0, 1024);
+    	        bytes_read = read(file_fd, buffer, 1024);
+    	        if (bytes_read == -1)
+    	        {
+    	            	syslog(LOG_ERR, "ERROR: Failed to read from %s file", DATA_FILE);
+   		    	node->my_thread_complete = false;
+              		goto exit;
+            	}
+
+            	syslog(LOG_INFO, "read succesful : %d bytes read", bytes_read);
+            			
+            	if (bytes_read)
+            	{
+        		// Send file data back to the client
+            	    	send_bytes = send(node->client_socket_fd, buffer, bytes_read, 0);
+                	if (send_bytes != bytes_read)
+                	{
+                    		syslog(LOG_ERR, "ERROR: Failed to Sending received data");
+                    		node->my_thread_complete = false;
+                    		goto exit;
+                	}
+                	node->my_thread_complete = true;
+            	}
+            }while (send_bytes != bytes_read);
+
+            if(final_buffer != NULL)
+            {
+            	free(final_buffer);
+            	final_buffer = NULL;
+            }
+    	}
+
+	exit:
+		if (file_fd != -1)
+    		{
+        		close(file_fd);
+    		}
+    		if (close(node->client_socket_fd) != 0)
+    		{
+    		    	syslog(LOG_INFO, "Unable to close connection from %s", ip_addr);
+    		}
+	
+    	syslog(LOG_INFO, "Closed connection from %s", ip_addr);
+    	return thread_node;
 }
 
 
@@ -350,10 +363,10 @@ int main(int argc, char *argv[]) {
   while (exit_status_flag == 0) {
     openlog("aesdsocket", 0, LOG_USER);
         // Register signal handlers for SIGINT and SIGTERM
-    	struct sigaction signal_actions;
-    	sigemptyset(&signal_actions.sa_mask);
-    	signal_actions.sa_flags = 0;
-    	signal_actions.sa_handler = signal_handler;
+    	//struct sigaction signal_actions;
+    	//sigemptyset(&signal_actions.sa_mask);
+    	//signal_actions.sa_flags = 0;
+    	//signal_actions.sa_handler = signal_handler;
     // Register signal handlers for SIGINT and SIGTERM
     if (SIG_ERR == signal(SIGINT, signal_handler)) {
       syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
