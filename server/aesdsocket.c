@@ -109,8 +109,8 @@ void signal_handler(int signal_number) {
   if ((signal_number == SIGINT) || (signal_number == SIGTERM)) {
     transfer_exit = 1;
     syslog(LOG_DEBUG, "Caught signal, exiting");
-    error_handler(file_work);
-    exit(EXIT_SUCCESS);
+    //error_handler(file_work);
+    //exit(EXIT_SUCCESS);
   }
 }
 
@@ -349,6 +349,11 @@ int main(int argc, char *argv[]) {
   SLIST_INIT(&head);
   while (exit_status_flag == 0) {
     openlog("aesdsocket", 0, LOG_USER);
+        // Register signal handlers for SIGINT and SIGTERM
+    	struct sigaction signal_actions;
+    	sigemptyset(&signal_actions.sa_mask);
+    	signal_actions.sa_flags = 0;
+    	signal_actions.sa_handler = signal_handler;
     // Register signal handlers for SIGINT and SIGTERM
     if (SIG_ERR == signal(SIGINT, signal_handler)) {
       syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
