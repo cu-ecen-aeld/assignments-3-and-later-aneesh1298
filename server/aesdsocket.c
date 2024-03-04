@@ -555,13 +555,15 @@ int main(int argc, char *argv[]) {
           data_ptr = NULL;
           exit_status_flag = 1;
           break;
+          //goto exit;
         }
       }
     }
     //return 0;
   }
 
-  error_handler(file_work);
+  //exit:
+  //error_handler(file_work);
   pthread_mutex_destroy(&thread_mutex);
   while (!SLIST_EMPTY(&head)) {
     data_ptr = SLIST_FIRST(&head);
