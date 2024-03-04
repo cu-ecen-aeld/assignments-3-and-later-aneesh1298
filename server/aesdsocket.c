@@ -109,7 +109,7 @@ void signal_handler(int signal_number) {
   if ((signal_number == SIGINT) || (signal_number == SIGTERM)) {
     transfer_exit = 1;
     syslog(LOG_DEBUG, "Caught signal, exiting");
-    error_handler(file_work);
+    //error_handler(file_work);
     //exit(EXIT_SUCCESS);
   }
 }
@@ -350,20 +350,28 @@ int main(int argc, char *argv[]) {
   while (exit_status_flag == 0) {
     openlog("aesdsocket", 0, LOG_USER);
         // Register signal handlers for SIGINT and SIGTERM
-    	//struct sigaction signal_actions;
-    	//sigemptyset(&signal_actions.sa_mask);
-    	//signal_actions.sa_flags = 0;
-    	//signal_actions.sa_handler = signal_handler;
+    	struct sigaction signal_actions;
+    	sigemptyset(&signal_actions.sa_mask);
+    	signal_actions.sa_flags = 0;
+    	signal_actions.sa_handler = signal_handler;
     // Register signal handlers for SIGINT and SIGTERM
-    if (SIG_ERR == signal(SIGINT, signal_handler)) {
-      syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
+    	if (sigaction(SIGINT, &signal_actions, NULL) != 0)
+	{
+		syslog(LOG_ERR, "ERROR: Unable to register SIGINT signal handler");
+	}
+	if (sigaction(SIGTERM, &signal_actions, NULL) != 0)
+	{
+		syslog(LOG_ERR, "ERROR: Unable to register SIGTERM signal handler");
+	}
+    //if (SIG_ERR == signal(SIGINT, signal_handler)) {
+      //syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
       // exit(EXIT_FAILURE);
-    }
+    //}
 
-    if (SIG_ERR == signal(SIGTERM, signal_handler)) {
-      syslog(LOG_ERR, "ERROR: signal() failed for SIGTERM");
+    //if (SIG_ERR == signal(SIGTERM, signal_handler)) {
+      //syslog(LOG_ERR, "ERROR: signal() failed for SIGTERM");
       // exit(EXIT_FAILURE);
-    }
+    //}
 
     // creates a socket for communication using IPv4 (AF_INET) and the TCP
     // protocol (SOCK_STREAM). The resulting file descriptor is stored in
@@ -563,7 +571,7 @@ int main(int argc, char *argv[]) {
   }
 
   //exit:
-  //error_handler(file_work);
+  error_handler(file_work);
   pthread_mutex_destroy(&thread_mutex);
   while (!SLIST_EMPTY(&head)) {
     data_ptr = SLIST_FIRST(&head);
