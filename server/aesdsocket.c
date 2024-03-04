@@ -571,7 +571,7 @@ int main(int argc, char *argv[]) {
   }
 
   //exit:
-  error_handler(file_work);
+  //error_handler(file_work);
   pthread_mutex_destroy(&thread_mutex);
   while (!SLIST_EMPTY(&head)) {
     data_ptr = SLIST_FIRST(&head);
