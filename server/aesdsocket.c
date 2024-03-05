@@ -133,6 +133,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
       //return thread_node;
+      close(file_fd);
       status=0;
       goto exit;
     }
@@ -144,6 +145,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
       //return thread_node;
+      close(file_fd);
       status=0;
       goto exit;
     }
@@ -153,6 +155,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
       //return thread_node;
+      close(file_fd);
       status=0;
       goto exit;
     }
@@ -162,6 +165,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
       //return thread_node;
+      close(file_fd);
       status=0;
       goto exit;
     }
@@ -173,6 +177,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
       //return thread_node;
+      close(file_fd);
       status=0;
       goto exit;
     }
@@ -184,6 +189,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
      // return thread_node;
+     close(file_fd);
      status=0;
      goto exit;
     }
@@ -192,6 +198,7 @@ void *timestamp_thread(void *thread_node) {
       //temp_node->my_thread_complete = false;
       //close(file_fd);
      // return thread_node;
+     close(file_fd);
      status=0;
      goto exit;
     }
@@ -204,6 +211,7 @@ void *timestamp_thread(void *thread_node) {
       //close(file_fd);
       //return thread_node;
       status=0;
+      close(file_fd);
       goto exit;
     }
     if (pthread_mutex_unlock(temp_node->thread_mutex) != 0) {
@@ -212,6 +220,7 @@ void *timestamp_thread(void *thread_node) {
       //close(file_fd);
       //return thread_node;
       status=0;
+      close(file_fd);
       goto exit;
     }
     status=1;
@@ -220,7 +229,7 @@ void *timestamp_thread(void *thread_node) {
   }
   
   exit:
-  close(file_fd);
+  //close(file_fd);
   if(status=0)
   {
   	temp_node->my_thread_complete = false;
