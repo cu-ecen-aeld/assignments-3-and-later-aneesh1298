@@ -230,7 +230,7 @@ void *timestamp_thread(void *thread_node) {
   
   exit:
   //close(file_fd);
-  if(status=0)
+  if(status==0)
   {
   	temp_node->my_thread_complete = false;
   }else
