@@ -118,6 +118,7 @@ void *timestamp_thread(void *thread_node) {
   if (NULL == thread_node) {
     return NULL;
   }
+  int status=0;
   int file_fd = -1;
   struct timespec time_period;
   char output[BUFF_SIZE] = {'\0'};
@@ -129,75 +130,105 @@ void *timestamp_thread(void *thread_node) {
   while (!transfer_exit) {
     if (clock_gettime(CLOCK_MONOTONIC, &time_period) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to get time");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
     time_period.tv_sec += 10;
 
     if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time_period, NULL) !=
         0) {
       syslog(LOG_ERR, "ERROR: Failed to sleep for 10 sec");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
     current_time =time(NULL);
     if ((current_time) == -1) {
       syslog(LOG_ERR, "ERROR: Failed to get current time");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
     local_time = localtime(&current_time);
     if (NULL == local_time) {
       syslog(LOG_ERR, "ERROR: Failed to fill tm struct");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
 
     characters_written = strftime(
         output, sizeof(output), "timestamp: %Y %B %d, %H:%M:%S\n", local_time);
     if (0 == characters_written) {
       syslog(LOG_ERR, "ERROR: Failed to convert tm into string");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
 
     file_fd = open(DATA_FILE, O_CREAT | O_RDWR | O_APPEND,
                    S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP | S_IROTH);
     if (file_fd == -1) {
       syslog(LOG_ERR, "ERROR: Failed to create/open file");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+     // return thread_node;
+     status=0;
+     goto exit;
     }
     if (pthread_mutex_lock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to lock mutex");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+     // return thread_node;
+     status=0;
+     goto exit;
     }
     // Writing the timestamp
     characters_written = write(file_fd, output, strlen(output));
     if (characters_written != strlen(output)) {
       syslog(LOG_ERR, "ERROR: Failed to write timestamp to file");
-      temp_node->my_thread_complete = false;
+      //temp_node->my_thread_complete = false;
       pthread_mutex_unlock(temp_node->thread_mutex);
-      close(file_fd);
-      return thread_node;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
     if (pthread_mutex_unlock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
-      temp_node->my_thread_complete = false;
-      close(file_fd);
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      goto exit;
     }
-    temp_node->my_thread_complete = true;
+    status=1;
+    //temp_node->my_thread_complete = true;
     close(file_fd);
   }
+  
+  exit:
+  close(file_fd);
+  if(status=0)
+  {
+  	temp_node->my_thread_complete = false;
+  }else
+  {
+  	temp_node->my_thread_complete = true;
+  }
+
   return thread_node;
 }
 
