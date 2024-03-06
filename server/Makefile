@@ -1,19 +1,14 @@
-# Makefile in the "server" directory
+CC ?= $(CROSS_COMPILE)gcc
+CFLAGS ?= -Wall -Werror -g 
+LDFLAGS ?= -pthread -lrt
 
-CC := $(CROSS_COMPILE)gcc
-CFLAGS := -g -Wall -Werror
+all: aesdsocket
 
-TARGET := aesdsocket
-
-all: $(TARGET)
-
-$(TARGET): aesdsocket.o
-	$(CC) $(CFLAGS) aesdsocket.o -o $(TARGET)
+aesdsocket: aesdsocket.o
+	$(CC) $^ $(LDFLAGS) -o $@
 
 aesdsocket.o: aesdsocket.c
-	$(CC) $(CFLAGS) -c aesdsocket.c
+	$(CC) -c $^ $(CFLAGS) -o $@ 
 
 clean:
-	-rm -f *.o $(TARGET)
-
-#######
+	rm -f *.o aesdsocket
