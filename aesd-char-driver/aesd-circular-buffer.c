@@ -16,6 +16,8 @@
 
 #include "aesd-circular-buffer.h"
 
+#define MAX_NUMBER 9
+
 /**
  * @param buffer the buffer to search for corresponding offset.  Any necessary locking must be performed by caller.
  * @param char_offset the position to search for in the buffer list, describing the zero referenced
@@ -32,7 +34,51 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
     /**
     * TODO: implement per description
     */
-    return NULL;
+    
+    if(buffer==NULL || char_offset<0 || entry_offset_byte_rtn == NULL)
+    {
+    	return NULL;
+    }
+    struct aesd_buffer_entry *return_entry = NULL;
+    uint8_t current_entry = buffer->out_offs;
+    uint8_t entries_count = 0;
+    if(buffer->full==1)
+    {
+    	entries_count= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+    }
+    else
+    {
+    	entries_count= buffer->in_offs - buffer->out_offs;
+    }
+    if(entries_count==0)
+    {
+    	return NULL;
+    }
+    while(entries_count--)
+    {
+    	return_entry= &buffer->entry[current_entry];
+    	if(char_offset< buffer->entry[current_entry].size)
+    	{
+    		*entry_offset_byte_rtn= char_offset;
+    		return return_entry;
+    	} 
+    	char_offset= char_offset - (buffer->entry[current_entry].size);
+    	// special case that might occur when we are done with entries and next element to be send is given by char_offset
+    	if(char_offset==0 && entries_count==0)
+    	{
+    	return NULL;
+    	}
+    	if(current_entry==MAX_NUMBER)
+    	{
+    		current_entry=0;
+    	}
+    	else
+    	{
+    		current_entry++;
+    	}
+    }
+    
+    return return_entry;
 }
 
 /**
@@ -47,6 +93,30 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
     /**
     * TODO: implement per description
     */
+    if(buffer==NULL || add_entry==NULL)
+    {
+    	return;
+    }
+    memcpy(&buffer->entry[buffer->in_offs], add_entry, sizeof(struct aesd_buffer_entry));
+    // here we are considering movement of out_offs when we have a buffer which is already full and filling new details.
+    if(buffer->in_offs==MAX_NUMBER)
+    {
+    	if(buffer->full==1)
+    	{
+    		buffer->out_offs= buffer->out_offs-  MAX_NUMBER;
+    	}
+    	buffer->in_offs= buffer->in_offs-MAX_NUMBER;
+        buffer->full = true;
+    }
+    else
+    {
+ 	(buffer->in_offs)++;
+    	if(buffer->full ==1)
+    	{
+    		(buffer->out_offs)++;
+    	}   
+    }
+    
 }
 
 /**
