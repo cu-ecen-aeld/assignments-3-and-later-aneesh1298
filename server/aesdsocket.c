@@ -110,7 +110,7 @@ void signal_handler(int signal_number) {
     transfer_exit = 1;
     syslog(LOG_DEBUG, "Caught signal, exiting");
     error_handler(file_work);
-    exit(EXIT_SUCCESS);
+    //exit(EXIT_SUCCESS);
   }
 }
 
@@ -118,6 +118,7 @@ void *timestamp_thread(void *thread_node) {
   if (NULL == thread_node) {
     return NULL;
   }
+  int status=0;
   int file_fd = -1;
   struct timespec time_period;
   char output[BUFF_SIZE] = {'\0'};
@@ -125,77 +126,131 @@ void *timestamp_thread(void *thread_node) {
   struct tm *local_time;
   int characters_written = 0;
   socket_node_t *temp_node = thread_node;
+  temp_node->my_thread_complete= false;
   while (!transfer_exit) {
     if (clock_gettime(CLOCK_MONOTONIC, &time_period) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to get time");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      close(file_fd);
+      status=0;
+      goto exit;
     }
     time_period.tv_sec += 10;
 
     if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &time_period, NULL) !=
         0) {
       syslog(LOG_ERR, "ERROR: Failed to sleep for 10 sec");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      close(file_fd);
+      status=0;
+      goto exit;
     }
-    if (time(&current_time) == -1) {
+    current_time =time(NULL);
+    if ((current_time) == -1) {
       syslog(LOG_ERR, "ERROR: Failed to get current time");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      close(file_fd);
+      status=0;
+      goto exit;
     }
     local_time = localtime(&current_time);
     if (NULL == local_time) {
       syslog(LOG_ERR, "ERROR: Failed to fill tm struct");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      close(file_fd);
+      status=0;
+      goto exit;
     }
 
     characters_written = strftime(
         output, sizeof(output), "timestamp: %Y %B %d, %H:%M:%S\n", local_time);
     if (0 == characters_written) {
       syslog(LOG_ERR, "ERROR: Failed to convert tm into string");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      close(file_fd);
+      status=0;
+      goto exit;
     }
 
     file_fd = open(DATA_FILE, O_CREAT | O_RDWR | O_APPEND,
                    S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP | S_IROTH);
     if (file_fd == -1) {
       syslog(LOG_ERR, "ERROR: Failed to create/open file");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+     // return thread_node;
+     close(file_fd);
+     status=0;
+     goto exit;
     }
     if (pthread_mutex_lock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to lock mutex");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+     // return thread_node;
+     close(file_fd);
+     status=0;
+     goto exit;
     }
     // Writing the timestamp
     characters_written = write(file_fd, output, strlen(output));
     if (characters_written != strlen(output)) {
       syslog(LOG_ERR, "ERROR: Failed to write timestamp to file");
-      temp_node->my_thread_complete = false;
+      //temp_node->my_thread_complete = false;
       pthread_mutex_unlock(temp_node->thread_mutex);
-      return thread_node;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      close(file_fd);
+      goto exit;
     }
     if (pthread_mutex_unlock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
-      temp_node->my_thread_complete = false;
-      return thread_node;
+      //temp_node->my_thread_complete = false;
+      //close(file_fd);
+      //return thread_node;
+      status=0;
+      close(file_fd);
+      goto exit;
     }
-    temp_node->my_thread_complete = true;
+    status=1;
+    //temp_node->my_thread_complete = true;
     close(file_fd);
   }
+  
+  exit:
+  //close(file_fd);
+  if(status==0)
+  {
+  	temp_node->my_thread_complete = false;
+  }else
+  {
+  	temp_node->my_thread_complete = true;
+  }
+
   return thread_node;
 }
+
+
+
 
 void *data_thread(void *thread_node) {
 
   char buf[BUF_SIZE];
   int packet_receive_complete = 0;
   socket_node_t *node = (socket_node_t *)thread_node;
-  ;
+  node->my_thread_complete = false;
+  int status=0;
   int file_fd = -1;
   if (thread_node == NULL) {
     return NULL;
@@ -204,48 +259,45 @@ void *data_thread(void *thread_node) {
   if (file_fd == -1) {
     syslog(LOG_ERR,
            "ERROR: Failed to  OPEN the FILE at /var/temp/aesdsocketdata");
-    error_handler(thread_close);
-    node->my_thread_complete = false;
-    return thread_node;
+      status=-1;
+	goto exit;
     // exit(EXIT_FAILURE);
   }
 
   while (1) {
     // bzero(buf, BUF_SIZE);
+    
     memset(buf, 0, BUF_SIZE);
     int n_received = recv(node->client_socket_fd, buf, 1024, 0);
     // printf("\n\r data received is %s\n\r",buf);
     if (n_received == -1) {
       syslog(LOG_ERR, "ERROR: Failed to RECEIVE data");
-      error_handler(thread_close);
-      node->my_thread_complete = false;
-      return thread_node;
+      status=-1;
+	goto exit;
       // exit(EXIT_FAILURE);
     }
 
     if (pthread_mutex_lock(node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to lock mutex");
-      error_handler(thread_close);
-      node->my_thread_complete = false;
-      return thread_node;
+      status=-1;
+	goto exit;
     }
 
     int n_written = write(file_fd, buf, n_received);
     //printf("\n\r data writing to file  is %s\n\r", buf);
     if ((n_written != n_received)) {
       syslog(LOG_ERR, "ERROR: Failed to WRITE complete data");
-      error_handler(thread_close);
+      //error_handler(thread_close);
       pthread_mutex_unlock(node->thread_mutex);
-      node->my_thread_complete = false;
-      return thread_node;
+      status=-1;
+	goto exit;
       // exit(EXIT_FAILURE);
     }
 
     if (pthread_mutex_unlock(node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
-      error_handler(thread_close);
-      node->my_thread_complete = false;
-      return thread_node;
+      status=-1;
+	goto exit;
     }
 
     int i = 0;
@@ -268,9 +320,8 @@ void *data_thread(void *thread_node) {
   int cursor_set = lseek(file_fd, 0, SEEK_SET);
   if (cursor_set == -1) {
     syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
-    error_handler(thread_close);
-    node->my_thread_complete = false;
-    return thread_node;
+      status=-1;
+	goto exit;
     // exit(EXIT_FAILURE);
   }
   int byte_transfer_size = 1024;
@@ -285,9 +336,8 @@ void *data_thread(void *thread_node) {
     int bytes_read = read(file_fd, buf, 1024);
     if (bytes_read == -1) {
       syslog(LOG_ERR, "ERROR: Failed to READ data");
-      error_handler(thread_close);
-      node->my_thread_complete = false;
-      return thread_node;
+      status=-1;
+	goto exit;
       // exit(EXIT_FAILURE);
     }
     syslog(LOG_INFO, "Sent %d bytes of data in total till now from %d in total",
@@ -297,9 +347,8 @@ void *data_thread(void *thread_node) {
       // printf("\n\r data sending is %s\n\r",buf);
       if (bytes_sent != bytes_read) {
         syslog(LOG_ERR, "ERROR: Failed to SEND data");
-        error_handler(thread_close);
-        node->my_thread_complete = false;
-        return thread_node;
+      status=-1;
+	goto exit;
         // exit(EXIT_FAILURE);
       }
     }
@@ -316,10 +365,28 @@ void *data_thread(void *thread_node) {
       break;
     }
   }
-  error_handler(thread_close);
-  node->my_thread_complete = true;
-  return thread_node;
+  exit:
+     close(node->client_socket_fd);
+    if (file_fd != -1) {
+      close(file_fd);
+      syslog(LOG_INFO, "FILE closure: %d", file_fd);
+    }
+    if(status== -1)
+    {
+        node->my_thread_complete = false;
+    }else{
+        node->my_thread_complete = true;
+    }
+    return thread_node;
+  //error_handler(thread_close);
+  //node->my_thread_complete = true;
+  //return thread_node;
 }
+
+
+
+
+
 
 int main(int argc, char *argv[]) {
   int exit_status_flag = 0;
@@ -333,16 +400,29 @@ int main(int argc, char *argv[]) {
   SLIST_INIT(&head);
   while (exit_status_flag == 0) {
     openlog("aesdsocket", 0, LOG_USER);
+        // Register signal handlers for SIGINT and SIGTERM
+    	struct sigaction signal_actions;
+    	sigemptyset(&signal_actions.sa_mask);
+    	signal_actions.sa_flags = 0;
+    	signal_actions.sa_handler = signal_handler;
     // Register signal handlers for SIGINT and SIGTERM
-    if (SIG_ERR == signal(SIGINT, signal_handler)) {
-      syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
+    	if (sigaction(SIGINT, &signal_actions, NULL) != 0)
+	{
+		syslog(LOG_ERR, "ERROR: Unable to register SIGINT signal handler");
+	}
+	if (sigaction(SIGTERM, &signal_actions, NULL) != 0)
+	{
+		syslog(LOG_ERR, "ERROR: Unable to register SIGTERM signal handler");
+	}
+    //if (SIG_ERR == signal(SIGINT, signal_handler)) {
+      //syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
       // exit(EXIT_FAILURE);
-    }
+    //}
 
-    if (SIG_ERR == signal(SIGTERM, signal_handler)) {
-      syslog(LOG_ERR, "ERROR: signal() failed for SIGTERM");
+    //if (SIG_ERR == signal(SIGTERM, signal_handler)) {
+      //syslog(LOG_ERR, "ERROR: signal() failed for SIGTERM");
       // exit(EXIT_FAILURE);
-    }
+    //}
 
     // creates a socket for communication using IPv4 (AF_INET) and the TCP
     // protocol (SOCK_STREAM). The resulting file descriptor is stored in
@@ -534,12 +614,14 @@ int main(int argc, char *argv[]) {
           data_ptr = NULL;
           exit_status_flag = 1;
           break;
+          //goto exit;
         }
       }
     }
-    return 0;
+    //return 0;
   }
 
+  //exit:
   error_handler(file_work);
   pthread_mutex_destroy(&thread_mutex);
   while (!SLIST_EMPTY(&head)) {
