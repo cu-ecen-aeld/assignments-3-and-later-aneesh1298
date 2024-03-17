@@ -123,7 +123,8 @@ void signal_handler(int signal_number) {
 }
 
 
-#if (USE_AESD_CHAR_DEVICE == 0)
+#if (USE_AESD_CHAR_DEVICE)
+#else
 void *timestamp_thread(void *thread_node) {
   if (NULL == thread_node) {
     return NULL;
@@ -548,7 +549,8 @@ int main(int argc, char *argv[]) {
       /* do its daemon thing... */
     }
 
-#if (USE_AESD_CHAR_DEVICE == 0)	
+#if (USE_AESD_CHAR_DEVICE)
+#else	
     // Node for timestamp thread
     data_ptr = (socket_node_t *)malloc(sizeof(socket_node_t));
     if (data_ptr == NULL) {
