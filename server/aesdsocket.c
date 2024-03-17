@@ -232,17 +232,12 @@ void *timestamp_thread(void *thread_node) {
       syslog(LOG_ERR, "ERROR: Failed to write timestamp to file");
       //temp_node->my_thread_complete = false;
       pthread_mutex_unlock(temp_node->thread_mutex);
-      //close(file_fd);
-      //return thread_node;
       status=0;
       close(file_fd);
       goto exit;
     }
     if (pthread_mutex_unlock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
-      //temp_node->my_thread_complete = false;
-      //close(file_fd);
-      //return thread_node;
       status=0;
       close(file_fd);
       goto exit;
@@ -346,65 +341,39 @@ void *data_thread(void *thread_node) {
       break;
     }
   }
-  struct stat file_info;
-  fstat(file_fd, &file_info);
-  int file_size = file_info.st_size;
-  //int cursor_set = lseek(file_fd, 0, SEEK_SET);
- // if (cursor_set == -1) {
-    //syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
    close(file_fd);
-            /* open file in read mode */
    file_fd = open(DATA_FILE, O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
    if (-1 == file_fd)
    {
       syslog(LOG_ERR, "Error opening %s file: %s", DATA_FILE, strerror(errno)); 
       status=-1;
 	goto exit;
-    // exit(EXIT_FAILURE);
   }
-  int byte_transfer_size = 1024;
-  for (int cumulatives_bytes_transferred = 0;
-       file_size >= cumulatives_bytes_transferred;
-       cumulatives_bytes_transferred += byte_transfer_size) {
-    // bzero(buf, 1024);
-    memset(buf, 0, 1024);
-    if (file_size - cumulatives_bytes_transferred < 1024) {
-      byte_transfer_size = file_size - cumulatives_bytes_transferred;
-    }
-    int bytes_read = read(file_fd, buf, 1024);
-    if (bytes_read == -1) {
-      syslog(LOG_ERR, "ERROR: Failed to READ data");
-      status=-1;
-	goto exit;
-      // exit(EXIT_FAILURE);
-    }
-    syslog(LOG_INFO, "Sent %d bytes of data in total till now from %d in total",
-           bytes_read, file_size);
-    if (bytes_read > 0) {
-      int bytes_sent = send(node->client_socket_fd, buf, bytes_read, 0);
-      // printf("\n\r data sending is %s\n\r",buf);
-      if (bytes_sent != bytes_read) {
-        syslog(LOG_ERR, "ERROR: Failed to SEND data");
-      status=-1;
-	goto exit;
-        // exit(EXIT_FAILURE);
-      }
-    }
-    if (byte_transfer_size < 1024) {
-      // printf("file transfer complete from  server\n");
-
-      syslog(LOG_INFO, "file transfer complete from  server");
-      // No other possibility to close than success
-      int file_closure = close(file_fd);
-      if (file_closure == 0) {
-        syslog(LOG_INFO, "CLOSED file after transfer complete");
-        syslog(LOG_INFO, "Closed connection from %s", ip_addr);
-      }
-      break;
-    }
-  }
-  exit:
-     
+    	    int read_bytes = 0;
+    	    int send_bytes = 0;
+    	    do
+    	    {
+    	        memset(buf, 0, BUFF_SIZE);
+    	        read_bytes = read(file_fd, buf, BUFF_SIZE);
+    	        if (read_bytes == -1)
+    	        {
+    	            	syslog(LOG_ERR, "ERROR: Failed to read from file");
+   		    	status = -1;
+              		goto exit;
+            	}
+            	if (read_bytes > 0)
+            	{
+            	    	send_bytes = send(node->client_socket_fd, buf, read_bytes, 0);
+                	if (send_bytes != read_bytes)
+                	{
+                    		syslog(LOG_ERR, "ERROR: Failed to Send bytes to client");
+                    		status = -1;
+                    		goto exit;
+                	}
+                	status = 0;
+            	}
+            } while (read_bytes > 0);
+  exit:    
      if (close(node->client_socket_fd) ==0)
     		{
     		    	syslog(LOG_INFO, "Closed connection from %s", ip_addr);
@@ -420,16 +389,7 @@ void *data_thread(void *thread_node) {
         node->my_thread_complete = true;
     }
     return thread_node;
-  //error_handler(thread_close);
-  //node->my_thread_complete = true;
-  //return thread_node;
 }
-
-
-
-
-
-
 int main(int argc, char *argv[]) {
   int exit_status_flag = 0;
 
@@ -458,15 +418,6 @@ int main(int argc, char *argv[]) {
 		syslog(LOG_ERR, "ERROR: Unable to register SIGTERM signal handler");
 		return 0;
 	}
-    //if (SIG_ERR == signal(SIGINT, signal_handler)) {
-      //syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
-      // exit(EXIT_FAILURE);
-    //}
-
-    //if (SIG_ERR == signal(SIGTERM, signal_handler)) {
-      //syslog(LOG_ERR, "ERROR: signal() failed for SIGTERM");
-      // exit(EXIT_FAILURE);
-    //}
         SLIST_HEAD(socket_head, socket_node) head;
     	SLIST_INIT(&head);
 
@@ -480,7 +431,6 @@ int main(int argc, char *argv[]) {
       return -1;
       exit_status_flag = 1;
       break;
-      // exit(EXIT_FAILURE);
     }
     // pecifies that the address family is unspecified, allowing getaddrinfo to
     // return both IPv4 and IPv6 addresses. Indicates that the socket type is
