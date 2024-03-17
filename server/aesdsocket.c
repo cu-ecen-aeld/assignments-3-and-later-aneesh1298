@@ -332,8 +332,8 @@ void *data_thread(void *thread_node) {
   //if (cursor_set == -1) {
     //syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
     close(file_fd);
-    file_fd = open(FILENAME, O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
-    if (FAILURE == file_fd)
+    file_fd = open(DATA_FILE, O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
+    if (-1 == file_fd)
    {
       syslog(LOG_ERR, "Error opening %s file: %s", DATA_FILE, strerror(errno)); 
       status=-1;
