@@ -346,9 +346,9 @@ void *data_thread(void *thread_node) {
       break;
     }
   }
-  //struct stat file_info;
-  //fstat(file_fd, &file_info);
-  //int file_size = file_info.st_size;
+  struct stat file_info;
+  fstat(file_fd, &file_info);
+  int file_size = file_info.st_size;
   //int cursor_set = lseek(file_fd, 0, SEEK_SET);
  // if (cursor_set == -1) {
     //syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
