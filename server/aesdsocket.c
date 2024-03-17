@@ -20,7 +20,13 @@
 #include <unistd.h>
 
 #define PORT "9000"
-#define DATA_FILE "/var/tmp/aesdsocketdata"
+//#define DATA_FILE "/var/tmp/aesdsocketdata"
+#define USE_AESD_CHAR_DEVICE   (1)
+#if (USE_AESD_CHAR_DEVICE == 0)
+    #define DATA_FILE           "/var/tmp/aesdsocketdata"
+#elif (USE_AESD_CHAR_DEVICE == 1)
+    #define DATA_FILE           "/dev/aesdchar"
+#endif
 #define BUF_SIZE 1024
 #define BUFF_SIZE 1024
 
@@ -97,7 +103,9 @@ void error_handler(transfer_status_t transfer_status) {
     syslog(LOG_INFO, "FILE closure: %d", file_fd);
   }
   closelog();
+  #if (USE_AESD_CHAR_DEVICE == 0)
   remove(DATA_FILE);
+  #endif
 }
 
 /**
@@ -114,6 +122,8 @@ void signal_handler(int signal_number) {
   }
 }
 
+
+#if (USE_AESD_CHAR_DEVICE == 0)
 void *timestamp_thread(void *thread_node) {
   if (NULL == thread_node) {
     return NULL;
@@ -241,6 +251,7 @@ void *timestamp_thread(void *thread_node) {
   return thread_node;
 }
 
+#endif
 
 
 
@@ -532,6 +543,7 @@ int main(int argc, char *argv[]) {
       /* do its daemon thing... */
     }
 
+#if (USE_AESD_CHAR_DEVICE == 0)	
     // Node for timestamp thread
     data_ptr = (socket_node_t *)malloc(sizeof(socket_node_t));
     if (data_ptr == NULL) {
@@ -552,6 +564,7 @@ int main(int argc, char *argv[]) {
       break;
     }
     SLIST_INSERT_HEAD(&head, data_ptr, node_next);
+#endif
 
     while (transfer_exit != 1) {
       // Declares a variable to store the size of the client's address
