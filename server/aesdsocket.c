@@ -20,12 +20,11 @@
 #include <unistd.h>
 
 #define PORT "9000"
-//#define DATA_FILE "/var/tmp/aesdsocketdata"
-#define USE_AESD_CHAR_DEVICE   (1)
-#if (USE_AESD_CHAR_DEVICE == 0)
-    #define DATA_FILE           "/var/tmp/aesdsocketdata"
-#elif (USE_AESD_CHAR_DEVICE == 1)
-    #define DATA_FILE           "/dev/aesdchar"
+#define DATA_FILE "/var/tmp/aesdsocketdata"
+#if USE_AESD_CHAR_DEVICE
+#   define DATA_FILE "/dev/aesdchar"
+#else
+#   define DATA_FILE "/var/tmp/aesdsocketdata"
 #endif
 #define BUF_SIZE 1024
 #define BUFF_SIZE 1024
@@ -103,7 +102,8 @@ void error_handler(transfer_status_t transfer_status) {
     syslog(LOG_INFO, "FILE closure: %d", file_fd);
   }
   closelog();
-  #if (USE_AESD_CHAR_DEVICE == 0)
+    #if USE_AESD_CHAR_DEVICE
+	#else
   remove(DATA_FILE);
   #endif
 }
@@ -328,9 +328,14 @@ void *data_thread(void *thread_node) {
   struct stat file_info;
   fstat(file_fd, &file_info);
   int file_size = file_info.st_size;
-  int cursor_set = lseek(file_fd, 0, SEEK_SET);
-  if (cursor_set == -1) {
-    syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
+  //int cursor_set = lseek(file_fd, 0, SEEK_SET);
+  //if (cursor_set == -1) {
+    //syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
+    close(file_fd);
+    file_fd = open(FILENAME, O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
+    if (FAILURE == file_fd)
+   {
+      syslog(LOG_ERR, "Error opening %s file: %s", DATA_FILE, strerror(errno)); 
       status=-1;
 	goto exit;
     // exit(EXIT_FAILURE);
@@ -560,6 +565,7 @@ int main(int argc, char *argv[]) {
       syslog(LOG_ERR, "ERROR: Failed to Create timer thread");
       free(data_ptr);
       data_ptr = NULL;
+      error_handler(file_work);
       exit_status_flag = 1;
       break;
     }
@@ -598,6 +604,7 @@ int main(int argc, char *argv[]) {
       data_ptr = (socket_node_t *)malloc(sizeof(socket_node_t));
       if (data_ptr == NULL) {
         syslog(LOG_ERR, "ERROR: Failed to malloc");
+        error_handler(file_work);
         exit_status_flag = 1;
         break;
       }
