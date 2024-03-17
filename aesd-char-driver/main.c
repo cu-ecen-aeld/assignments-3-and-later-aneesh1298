@@ -136,9 +136,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     }
     retval=count;
     my_dev->entry.size += retval;
-    if (dev->entry.buffptr[dev->entry.size-1] == '\n')
+    if (my_dev->entry.buffptr[my_dev->entry.size-1] == '\n')
     {
-        free_ptr = aesd_circular_buffer_add_entry(&dev->buffer, &dev->entry);
+        free_ptr = aesd_circular_buffer_add_entry(&my_dev->buffer, &my_dev->entry);
         /* free overwritten entry buffptr */
         if (free_ptr != NULL)
         {
@@ -146,8 +146,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             free_ptr = NULL;
         }
         /* reset working entry */
-        dev->entry.buffptr = NULL;
-        dev->entry.size = 0;
+        my_dev->entry.buffptr = NULL;
+        my_dev->entry.size = 0;
     }
 error_handler:
     mutex_unlock(&aesd_device.lock);  // Release the mutex lock
