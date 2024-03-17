@@ -362,41 +362,47 @@ void *data_thread(void *thread_node) {
 	goto exit;
     // exit(EXIT_FAILURE);
   }
-  
-  
-  
-  
-  // read till EOF 
-    	    int read_bytes = 0;
-    	    int send_bytes = 0;
-    	    do
-    	    {
-    	        memset(buf, 0, BUFF_SIZE);
-    	        read_bytes = read(file_fd, buf, BUFF_SIZE);
-    	        if (read_bytes == -1)
-    	        {
-    	            	syslog(LOG_ERR, "ERROR: Failed to read from file");
-   		    	status = -1;
-              		goto exit;
-            	}
-            	syslog(LOG_INFO, "read succesful is: %d", read_bytes);
-            	syslog(LOG_INFO, "read succesful is: %s", buf);
-            			
-            	if (read_bytes > 0)
-            	{
-        		// Send file data back to the client
-            	    	send_bytes = send(node->client_socket_fd, buf, read_bytes, 0);
-                	if (send_bytes != read_bytes)
-                	{
-                    		syslog(LOG_ERR, "ERROR: Failed to Send bytes to client");
-                    		status = -1;
-                    		goto exit;
-                	}
-                	status = 0;
-            	}
-            } while (read_bytes > 0);
-  
-  
+  int byte_transfer_size = 1024;
+  for (int cumulatives_bytes_transferred = 0;
+       file_size >= cumulatives_bytes_transferred;
+       cumulatives_bytes_transferred += byte_transfer_size) {
+    // bzero(buf, 1024);
+    memset(buf, 0, 1024);
+    if (file_size - cumulatives_bytes_transferred < 1024) {
+      byte_transfer_size = file_size - cumulatives_bytes_transferred;
+    }
+    int bytes_read = read(file_fd, buf, 1024);
+    if (bytes_read == -1) {
+      syslog(LOG_ERR, "ERROR: Failed to READ data");
+      status=-1;
+	goto exit;
+      // exit(EXIT_FAILURE);
+    }
+    syslog(LOG_INFO, "Sent %d bytes of data in total till now from %d in total",
+           bytes_read, file_size);
+    if (bytes_read > 0) {
+      int bytes_sent = send(node->client_socket_fd, buf, bytes_read, 0);
+      // printf("\n\r data sending is %s\n\r",buf);
+      if (bytes_sent != bytes_read) {
+        syslog(LOG_ERR, "ERROR: Failed to SEND data");
+      status=-1;
+	goto exit;
+        // exit(EXIT_FAILURE);
+      }
+    }
+    if (byte_transfer_size < 1024) {
+      // printf("file transfer complete from  server\n");
+
+      syslog(LOG_INFO, "file transfer complete from  server");
+      // No other possibility to close than success
+      int file_closure = close(file_fd);
+      if (file_closure == 0) {
+        syslog(LOG_INFO, "CLOSED file after transfer complete");
+        syslog(LOG_INFO, "Closed connection from %s", ip_addr);
+      }
+      break;
+    }
+  }
   exit:
      
      if (close(node->client_socket_fd) ==0)
