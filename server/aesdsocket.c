@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #define PORT "9000"
+#define USE_AESD_CHAR_DEVICE   (1)
 #define DATA_FILE "/var/tmp/aesdsocketdata"
 #if USE_AESD_CHAR_DEVICE
 #   define DATA_FILE "/dev/aesdchar"
@@ -103,7 +104,7 @@ void error_handler(transfer_status_t transfer_status) {
   }
   closelog();
     #if USE_AESD_CHAR_DEVICE
-	#else
+    #else
   remove(DATA_FILE);
   #endif
 }
