@@ -20,7 +20,12 @@
 #include <unistd.h>
 
 #define PORT "9000"
-#define DATA_FILE "/var/tmp/aesdsocketdata"
+#define USE_AESD_CHAR_DEVICE   (1)
+#if (USE_AESD_CHAR_DEVICE == 0)
+    #define DATA_FILE           "/var/tmp/aesdsocketdata"
+#elif (USE_AESD_CHAR_DEVICE == 1)
+    #define DATA_FILE           "/dev/aesdchar"
+#endif
 #define BUF_SIZE 1024
 #define BUFF_SIZE 1024
 
@@ -68,20 +73,32 @@ void error_handler(transfer_status_t transfer_status) {
   // stage.
   if (transfer_status == Socket_created) {
     close(socket_fd);
+      #if (USE_AESD_CHAR_DEVICE == 0)
+  	remove(DATA_FILE);
+  	#endif
     syslog(LOG_INFO, "CLOSE socket_fd: %d", socket_fd);
   }
   // Close socket_fd and client_socket_fd, and log closure messages if the error
   // occurred at the client_socket stage.
   else if (transfer_status == client_socket) {
     close(socket_fd);
-    syslog(LOG_INFO, "CLOSE socket_fd: %d", socket_fd);
+      #if (USE_AESD_CHAR_DEVICE == 0)
+  	remove(DATA_FILE);
+  	#endif
+  	  syslog(LOG_INFO, "CLOSE socket_fd: %d", socket_fd);
     close(client_socket_fd);
     syslog(LOG_INFO, "CLOSE client_socket_fd: %d", client_socket_fd);
   } else if (transfer_status == thread_close) {
     close(client_socket_fd);
+      #if (USE_AESD_CHAR_DEVICE == 0)
+  	remove(DATA_FILE);
+  	#endif
     syslog(LOG_INFO, "CLOSE client_socket_fd: %d", client_socket_fd);
     if (file_fd != -1) {
       close(file_fd);
+        #if (USE_AESD_CHAR_DEVICE == 0)
+  	remove(DATA_FILE);
+  	#endif
       syslog(LOG_INFO, "FILE closure: %d", file_fd);
     }
     return;
@@ -91,13 +108,18 @@ void error_handler(transfer_status_t transfer_status) {
   else {
     close(socket_fd);
     syslog(LOG_INFO, "CLOSE socket_fd: %d", socket_fd);
+      #if (USE_AESD_CHAR_DEVICE == 0)
+  remove(DATA_FILE);
+  #endif
     close(client_socket_fd);
     syslog(LOG_INFO, "CLOSE client_socket_fd: %d", client_socket_fd);
     close(file_fd);
     syslog(LOG_INFO, "FILE closure: %d", file_fd);
   }
   closelog();
+  #if (USE_AESD_CHAR_DEVICE == 0)
   remove(DATA_FILE);
+  #endif
 }
 
 /**
@@ -114,6 +136,8 @@ void signal_handler(int signal_number) {
   }
 }
 
+
+#if (USE_AESD_CHAR_DEVICE == 0)
 void *timestamp_thread(void *thread_node) {
   if (NULL == thread_node) {
     return NULL;
@@ -208,17 +232,12 @@ void *timestamp_thread(void *thread_node) {
       syslog(LOG_ERR, "ERROR: Failed to write timestamp to file");
       //temp_node->my_thread_complete = false;
       pthread_mutex_unlock(temp_node->thread_mutex);
-      //close(file_fd);
-      //return thread_node;
       status=0;
       close(file_fd);
       goto exit;
     }
     if (pthread_mutex_unlock(temp_node->thread_mutex) != 0) {
       syslog(LOG_ERR, "ERROR: Failed to unlock mutex");
-      //temp_node->my_thread_complete = false;
-      //close(file_fd);
-      //return thread_node;
       status=0;
       close(file_fd);
       goto exit;
@@ -241,7 +260,7 @@ void *timestamp_thread(void *thread_node) {
   return thread_node;
 }
 
-
+#endif
 
 
 void *data_thread(void *thread_node) {
@@ -258,13 +277,14 @@ void *data_thread(void *thread_node) {
   file_fd = open(DATA_FILE, O_CREAT | O_RDWR | O_APPEND, 0744);
   if (file_fd == -1) {
     syslog(LOG_ERR,
-           "ERROR: Failed to  OPEN the FILE at /var/temp/aesdsocketdata");
+           "ERROR: Failed to  OPEN the FILE at %s",DATA_FILE);
+      perror("Aneesh");
       status=-1;
 	goto exit;
     // exit(EXIT_FAILURE);
   }
 
-  while (1) {
+  while (packet_receive_complete !=1) {
     // bzero(buf, BUF_SIZE);
     
     memset(buf, 0, BUF_SIZE);
@@ -273,6 +293,7 @@ void *data_thread(void *thread_node) {
     if (n_received == -1) {
       syslog(LOG_ERR, "ERROR: Failed to RECEIVE data");
       status=-1;
+      //pthread_mutex_unlock(node->thread_mutex);
 	goto exit;
       // exit(EXIT_FAILURE);
     }
@@ -288,8 +309,9 @@ void *data_thread(void *thread_node) {
     if ((n_written != n_received)) {
       syslog(LOG_ERR, "ERROR: Failed to WRITE complete data");
       //error_handler(thread_close);
-      pthread_mutex_unlock(node->thread_mutex);
+      
       status=-1;
+      pthread_mutex_unlock(node->thread_mutex);
 	goto exit;
       // exit(EXIT_FAILURE);
     }
@@ -300,6 +322,11 @@ void *data_thread(void *thread_node) {
 	goto exit;
     }
 
+    	        if ((memchr(buf, '\n', n_received)) != NULL)
+    	        {
+    	            packet_receive_complete = 1;
+    	            break;
+    	        }
     int i = 0;
     // or can you some standerd functions like memchr
     for (i = 0; i < n_received; i++) {
@@ -314,59 +341,43 @@ void *data_thread(void *thread_node) {
       break;
     }
   }
-  struct stat file_info;
-  fstat(file_fd, &file_info);
-  int file_size = file_info.st_size;
-  int cursor_set = lseek(file_fd, 0, SEEK_SET);
-  if (cursor_set == -1) {
-    syslog(LOG_ERR, "ERROR: Failed to SEEK cursor to start");
+   close(file_fd);
+   file_fd = open(DATA_FILE, O_RDONLY, S_IRUSR | S_IRGRP | S_IROTH);
+   if (-1 == file_fd)
+   {
+      syslog(LOG_ERR, "Error opening %s file: %s", DATA_FILE, strerror(errno)); 
       status=-1;
 	goto exit;
-    // exit(EXIT_FAILURE);
   }
-  int byte_transfer_size = 1024;
-  for (int cumulatives_bytes_transferred = 0;
-       file_size >= cumulatives_bytes_transferred;
-       cumulatives_bytes_transferred += byte_transfer_size) {
-    // bzero(buf, 1024);
-    memset(buf, 0, 1024);
-    if (file_size - cumulatives_bytes_transferred < 1024) {
-      byte_transfer_size = file_size - cumulatives_bytes_transferred;
-    }
-    int bytes_read = read(file_fd, buf, 1024);
-    if (bytes_read == -1) {
-      syslog(LOG_ERR, "ERROR: Failed to READ data");
-      status=-1;
-	goto exit;
-      // exit(EXIT_FAILURE);
-    }
-    syslog(LOG_INFO, "Sent %d bytes of data in total till now from %d in total",
-           bytes_read, file_size);
-    if (bytes_read > 0) {
-      int bytes_sent = send(node->client_socket_fd, buf, bytes_read, 0);
-      // printf("\n\r data sending is %s\n\r",buf);
-      if (bytes_sent != bytes_read) {
-        syslog(LOG_ERR, "ERROR: Failed to SEND data");
-      status=-1;
-	goto exit;
-        // exit(EXIT_FAILURE);
-      }
-    }
-    if (byte_transfer_size < 1024) {
-      // printf("file transfer complete from  server\n");
-
-      syslog(LOG_INFO, "file transfer complete from  server");
-      // No other possibility to close than success
-      int file_closure = close(file_fd);
-      if (file_closure == 0) {
-        syslog(LOG_INFO, "CLOSED file after transfer complete");
-        syslog(LOG_INFO, "Closed connection from %s", ip_addr);
-      }
-      break;
-    }
-  }
-  exit:
-     close(node->client_socket_fd);
+    	    int read_bytes = 0;
+    	    int send_bytes = 0;
+    	    do
+    	    {
+    	        memset(buf, 0, BUFF_SIZE);
+    	        read_bytes = read(file_fd, buf, BUFF_SIZE);
+    	        if (read_bytes == -1)
+    	        {
+    	            	syslog(LOG_ERR, "ERROR: Failed to read from file");
+   		    	status = -1;
+              		goto exit;
+            	}
+            	if (read_bytes > 0)
+            	{
+            	    	send_bytes = send(node->client_socket_fd, buf, read_bytes, 0);
+                	if (send_bytes != read_bytes)
+                	{
+                    		syslog(LOG_ERR, "ERROR: Failed to Send bytes to client");
+                    		status = -1;
+                    		goto exit;
+                	}
+                	status = 0;
+            	}
+            } while (read_bytes > 0);
+  exit:    
+     if (close(node->client_socket_fd) ==0)
+    		{
+    		    	syslog(LOG_INFO, "Closed connection from %s", ip_addr);
+    		}
     if (file_fd != -1) {
       close(file_fd);
       syslog(LOG_INFO, "FILE closure: %d", file_fd);
@@ -378,16 +389,7 @@ void *data_thread(void *thread_node) {
         node->my_thread_complete = true;
     }
     return thread_node;
-  //error_handler(thread_close);
-  //node->my_thread_complete = true;
-  //return thread_node;
 }
-
-
-
-
-
-
 int main(int argc, char *argv[]) {
   int exit_status_flag = 0;
 
@@ -409,20 +411,15 @@ int main(int argc, char *argv[]) {
     	if (sigaction(SIGINT, &signal_actions, NULL) != 0)
 	{
 		syslog(LOG_ERR, "ERROR: Unable to register SIGINT signal handler");
+		return -1;
 	}
 	if (sigaction(SIGTERM, &signal_actions, NULL) != 0)
 	{
 		syslog(LOG_ERR, "ERROR: Unable to register SIGTERM signal handler");
+		return 0;
 	}
-    //if (SIG_ERR == signal(SIGINT, signal_handler)) {
-      //syslog(LOG_ERR, "ERROR: signal() failed for SIGINT");
-      // exit(EXIT_FAILURE);
-    //}
-
-    //if (SIG_ERR == signal(SIGTERM, signal_handler)) {
-      //syslog(LOG_ERR, "ERROR: signal() failed for SIGTERM");
-      // exit(EXIT_FAILURE);
-    //}
+        SLIST_HEAD(socket_head, socket_node) head;
+    	SLIST_INIT(&head);
 
     // creates a socket for communication using IPv4 (AF_INET) and the TCP
     // protocol (SOCK_STREAM). The resulting file descriptor is stored in
@@ -431,9 +428,9 @@ int main(int argc, char *argv[]) {
     // checks error condition for case of socket creation.
     if (socket_fd == -1) {
       syslog(LOG_ERR, "ERROR: socket() failed ");
+      return -1;
       exit_status_flag = 1;
       break;
-      // exit(EXIT_FAILURE);
     }
     // pecifies that the address family is unspecified, allowing getaddrinfo to
     // return both IPv4 and IPv6 addresses. Indicates that the socket type is
@@ -450,6 +447,7 @@ int main(int argc, char *argv[]) {
     if ((getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
       syslog(LOG_ERR, "ERROR: getaddrinfo() didnt recover address");
       exit_status_flag = 1;
+      status=-1;
       break;
     }
 
@@ -462,6 +460,7 @@ int main(int argc, char *argv[]) {
       syslog(LOG_ERR, "ERROR: SETSOCKOPT() -Failure");
       freeaddrinfo(servinfo);
       error_handler(Socket_created);
+      status =-1;
       exit_status_flag = 1;
       break;
     }
@@ -474,6 +473,7 @@ int main(int argc, char *argv[]) {
       // needed.
       freeaddrinfo(servinfo);
       error_handler(Socket_created);
+      status =-1;
       exit_status_flag = 1;
       break;
     }
@@ -532,6 +532,7 @@ int main(int argc, char *argv[]) {
       /* do its daemon thing... */
     }
 
+#if (USE_AESD_CHAR_DEVICE == 0)	
     // Node for timestamp thread
     data_ptr = (socket_node_t *)malloc(sizeof(socket_node_t));
     if (data_ptr == NULL) {
@@ -552,6 +553,7 @@ int main(int argc, char *argv[]) {
       break;
     }
     SLIST_INSERT_HEAD(&head, data_ptr, node_next);
+#endif
 
     while (transfer_exit != 1) {
       // Declares a variable to store the size of the client's address
@@ -565,7 +567,7 @@ int main(int argc, char *argv[]) {
 
       if (client_socket_fd == -1) {
         syslog(LOG_ERR, "ERROR: Failed to ACCEPT SOCKET");
-        error_handler(file_work);
+        //error_handler(file_work);
         exit_status_flag = 1;
         break;
       }
@@ -575,7 +577,7 @@ int main(int argc, char *argv[]) {
                             get_in_addr((struct sockaddr *)&client_addr),
                             ip_addr, sizeof(ip_addr))) {
         syslog(LOG_ERR, "ERROR: Failed to OBTAIN IP");
-        error_handler(file_work);
+        //error_handler(file_work);
         exit_status_flag = 1;
         break;
       }
@@ -585,6 +587,8 @@ int main(int argc, char *argv[]) {
       data_ptr = (socket_node_t *)malloc(sizeof(socket_node_t));
       if (data_ptr == NULL) {
         syslog(LOG_ERR, "ERROR: Failed to malloc");
+        //error_handler(file_work);
+        status =-1;
         exit_status_flag = 1;
         break;
       }
@@ -598,6 +602,8 @@ int main(int argc, char *argv[]) {
         syslog(LOG_ERR, "ERROR: Failed to create connection thread");
         free(data_ptr);
         data_ptr = NULL;
+        //error_handler(file_work);
+        status =-1;
         exit_status_flag = 1;
         break;
       }
@@ -623,7 +629,7 @@ int main(int argc, char *argv[]) {
 
   //exit:
   error_handler(file_work);
-  pthread_mutex_destroy(&thread_mutex);
+  //pthread_mutex_destroy(&thread_mutex);
   while (!SLIST_EMPTY(&head)) {
     data_ptr = SLIST_FIRST(&head);
     SLIST_REMOVE_HEAD(&head, node_next);
@@ -631,6 +637,7 @@ int main(int argc, char *argv[]) {
     free(data_ptr);
     data_ptr = NULL;
   }
+  pthread_mutex_destroy(&thread_mutex);
   printf("EXITING PROCESS\n");
-  return -1;
+  return status;
 }
