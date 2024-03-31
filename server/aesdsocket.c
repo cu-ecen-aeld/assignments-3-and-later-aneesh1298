@@ -305,10 +305,10 @@ void *data_thread(void *thread_node) {
     }
 
    #if (USE_AESD_CHAR_DEVICE == 1)
-         if ( strncmp(buffer, ioctl_str, strlen(ioctl_str)) ==0)
+         if ( strncmp(buf, ioctl_str, strlen(ioctl_str)) ==0)
          {
                 struct aesd_seekto data_seeking;
-                if (MATCHED_INPUTS_COUNT != sscanf(buf, "AESDCHAR_IOCSEEKTO:%d,%d",
+                if (INPUTS_MATCHED != sscanf(buf, "AESDCHAR_IOCSEEKTO:%d,%d",
                                                    &data_seeking.write_cmd,
                                                    &data_seeking.write_cmd_offset))
                 {
