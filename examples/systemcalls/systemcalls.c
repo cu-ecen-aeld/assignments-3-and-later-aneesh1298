@@ -1,4 +1,12 @@
 #include "systemcalls.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <fcntl.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -9,15 +17,33 @@
 */
 bool do_system(const char *cmd)
 {
-
+    // Check if the command is NULL
+    if (cmd == NULL) {
+        // If the shell /bin/sh is available, return true; otherwise, return false
+        return (system(NULL) != 0);
+    }
 /*
  * TODO  add your code here
  *  Call the system() function with the command set in the cmd
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    // Call the system() function with the provided command
+    int result = system(cmd);
 
-    return true;
+    // Check if the system() call was successful
+    if (result == 0)
+    {
+        return true;  // Success
+    }
+    else
+    {
+        // Print an error message if system() failed
+        perror("system");
+        return false;  // Failure
+    }
+
+   // return true;
 }
 
 /**
@@ -49,6 +75,14 @@ bool do_exec(int count, ...)
     // and may be removed
     command[count] = command[count];
 
+    // To mention that there is a need of more than or equal to 1 command after count parameter 
+    if(count <=1)
+    {
+	    return false;
+    }
+
+   va_end(args);
+
 /*
  * TODO:
  *   Execute a system command by calling fork, execv(),
@@ -58,12 +92,42 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    // Fork a child process
+    pid_t pid = fork();
 
-    va_end(args);
+    if (pid == -1)
+    {
+        perror("fork");
+        return false; // Fork failed
+    }
+    else if (pid == 0)
+    {
+        // Child process
+        execv(command[0], command);
+        perror("execv"); // This line is reached only if execv fails
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        // Parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1)
+        {
+            perror("waitpid");
+            return false; // waitpid failed
+        }
 
-    return true;
+        // Check if the child process terminated successfully
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+        {
+            return true; // Executed successfully
+        }
+        else
+        {
+            return false; // Command returned a non-zero exit status
+        }
+    }
 }
-
 /**
 * @param outputfile - The full path to the file to write with command output.
 *   This file will be closed at completion of the function call.
@@ -94,6 +158,63 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
 
     va_end(args);
+// Fork a child process
+    pid_t pid = fork();
 
-    return true;
+    if (pid == -1)
+    {
+        perror("fork");
+        return false; // Fork failed
+    }
+    else if (pid == 0)
+    {
+        // Child process
+
+        // Open the output file for writing (creating if it doesn't exist, truncating otherwise)
+        int output_fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+        if (output_fd == -1)
+        {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+
+        // Redirect standard output to the output file
+        if (dup2(output_fd, STDOUT_FILENO) == -1)
+        {
+            perror("dup2");
+            close(output_fd);
+            exit(EXIT_FAILURE);
+        }
+
+        // Close the duplicated file descriptor
+        close(output_fd);
+
+        // Execute the command
+        execv(command[0], command);
+
+        perror("execv"); // This line is reached only if execv fails
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        // Parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1)
+        {
+            perror("waitpid");
+            return false; // waitpid failed
+        }
+
+        // Check if the child process terminated successfully
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+        {
+            return true; // Executed successfully
+        }
+        else
+        {
+            return false; // Command returned a non-zero exit status
+        }
+    }
+   // return true;
 }
