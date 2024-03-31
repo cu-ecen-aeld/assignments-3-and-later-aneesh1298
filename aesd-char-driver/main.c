@@ -192,12 +192,12 @@ loff_t aesd_llseek(struct file *filp, loff_t offset, int whence)
 
 }
 
-static long aesd_adjust_file_offset(struct file *filp, unsigned int write_command, unsigned int write_command_offset)
+static long aesd_adjust_file_offset(struct file *filp, unsigned int write_cmd, unsigned int write_cmd_offset)
 {
     struct aesd_dev *my_dev = NULL;
     long retval = 0;
     uint8_t index = 0;
-    struct aesd_buffer_entry *buffer_entry = NULL;
+    struct aesd_buffer_entry *entry = NULL;
 
     if (filp == NULL)
     {
@@ -213,19 +213,19 @@ static long aesd_adjust_file_offset(struct file *filp, unsigned int write_comman
         return -EINTR;
     }
     /* Get the total entries count in circular buffer in index */
-    AESD_CIRCULAR_BUFFER_FOREACH(buffer_entry,&aesd_device.buffer,index){}
+    AESD_CIRCULAR_BUFFER_FOREACH(entry,&aesd_device.buffer,index){}
 
-    if ( (write_command > AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) || (write_command > index) || (write_command_offset >= my_dev->buffer.buffer_entry[write_command].size) )
+    if ( (write_cmd > AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) || (write_cmd > index) || (write_cmd_offset >= my_dev->buffer.entry[write_cmd].size) )
     {
         retval = -EINVAL;
         goto error_handler;
     }
 
-    for (index = 0; index < write_command; index++)
+    for (index = 0; index < write_cmd; index++)
     {
-        filp->f_pos += my_dev->buffer.buffer_entry[index].size;
+        filp->f_pos += my_dev->buffer.entry[index].size;
     }
-    filp->f_pos += write_command_offset;
+    filp->f_pos += write_cmd_offset;
 
 error_handler:
     mutex_unlock(&my_dev->lock);
@@ -262,7 +262,7 @@ long aesd_ioctl(struct file *filp, unsigned int command, unsigned long arg)
         }
         else
         {
-            retval = aesd_adjust_file_offset(filp, seeking_data.write_command, seeking_data.write_command_offset);
+            retval = aesd_adjust_file_offset(filp, seeking_data.write_cmd, seeking_data.write_cmd_offset);
         }
         break;
 
